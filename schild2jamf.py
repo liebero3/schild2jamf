@@ -6,6 +6,7 @@ import re
 import utils
 import os
 import csv
+from unidecode import unidecode
 
 
 class User:
@@ -484,6 +485,15 @@ def return_webuntis_uid(user):
     )
 
 
+def custom_transliterate(name):
+    translations = {
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue'
+    }
+    for original, replacement in translations.items():
+        name = name.replace(original, replacement)
+    return unidecode(name)
+
 def return_username(given, last, typ):
     """
     Generates a username based on the specified type from given and last name strings.
@@ -515,9 +525,9 @@ def return_username(given, last, typ):
         # - Concatenate with a period and the translated last name,
         #   removing any spaces or hyphens.
         username = (
-            given.translate(mappings.mappingusername).split(" ")[0]
+            custom_transliterate(given).split(" ")[0]
             + "."
-            + last.translate(mappings.mappingusername).replace(" ", "").replace("-", "")
+            + custom_transliterate(last).replace(" ", "").replace("-", "")
         )
     if typ == "kurzform":
         # For the "kurzform" type:
@@ -525,8 +535,8 @@ def return_username(given, last, typ):
         # - Translate the last name using the mapping,
         #   removing spaces and hyphens, then take the first 4 characters.
         username = (
-            given.translate(mappings.mappingusername).split(" ")[0][:4]
-            + last.translate(mappings.mappingusername)
+            custom_transliterate(given).split(" ")[0][:4]
+            + custom_transliterate(last)
             .replace(" ", "")
             .replace("-", "")[:4]
         )
@@ -836,7 +846,7 @@ def create_jamf_accounts_teachers(nameOfOutputCsv: str, klasse_filter: str = Non
 
 if __name__ == "__main__":
     # Set the path to the current XML file containing the user, group, and membership information
-    inputaktuell = "./xml/SchILD20241006.xml"
+    inputaktuell = "./xml/SchILD20241007.xml"
     
     # Extract the date from the input file name by filtering digits
     exportdate = "".join([i for i in inputaktuell if i.isdigit()])
