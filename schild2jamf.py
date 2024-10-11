@@ -1,5 +1,6 @@
 # schild2jamf.py
 
+import argparse
 import xml.etree.ElementTree as ET
 import mappings
 import re
@@ -54,11 +55,11 @@ class Membership:
         return f"Membership {self.groupid}"
 
 
-def parse_users(users):
+def parse_users(users, root):
     """
     Parses user data from an XML structure and appends User objects to the provided list.
 
-    This function iterates over XML elements representing persons. Each person element contains 
+    This function iterates over XML elements representing persons. Each person element contains
     sub-elements with detailed information about teachers (faculty or extern) and students.
 
     For each user, the function:
@@ -69,7 +70,7 @@ def parse_users(users):
     - Checks for duplicate usernames and appends '1' to the username if a duplicate is found.
     - Calculates an initial password based on user attributes.
     - Extracts or formats additional user-specific details like birthday.
-    - Creates a User object with the parsed data and appends it to the 'users' list. 
+    - Creates a User object with the parsed data and appends it to the 'users' list.
 
     Args:
         users (list): A list to populate with User objects created from parsed XML data.
@@ -109,7 +110,7 @@ def parse_users(users):
             ".//{http://www.metaventis.com/ns/cockpit/sync/1.0}institutionrole"
         ):
             institutionrole = child.get("institutionroletype")
-        
+
         # Attempts to find and store the email, defaults to an empty string
         email = ""
         for child in elem.findall(
@@ -156,23 +157,23 @@ def parse_users(users):
         )
 
 
-def parse_groups(groups):
+def parse_groups(groups, root):
     """
-    Parses group data from an XML structure and appends Group objects to 
+    Parses group data from an XML structure and appends Group objects to
     the provided groups list.
 
-    This function iterates over XML elements representing groups and extracts 
+    This function iterates over XML elements representing groups and extracts
     relevant information for each group. The parsed data includes:
     - The unique identifier for the group (groupid).
     - The name of the group, derived from its short description.
-    - The parent group ID, if a hierarchical relationship exists between 
+    - The parent group ID, if a hierarchical relationship exists between
       groups.
 
-    The function then creates a Group object using the extracted data 
+    The function then creates a Group object using the extracted data
     and appends it to the 'groups' list.
 
     Args:
-        groups (list): A list to populate with Group objects created 
+        groups (list): A list to populate with Group objects created
                        from parsed XML data.
 
     XML Structure:
@@ -189,7 +190,7 @@ def parse_groups(groups):
 
     # Find all 'group' elements in the XML document using the specific namespace
     for elem in root.findall(".//{http://www.metaventis.com/ns/cockpit/sync/1.0}group"):
-        
+
         # Extract the group ID from each group element
         for child in elem.findall(
             "{http://www.metaventis.com/ns/cockpit/sync/1.0}sourcedid/{http://www.metaventis.com/ns/cockpit/sync/1.0}id"
@@ -212,36 +213,36 @@ def parse_groups(groups):
         groups.append(Group(groupid, name, parent))
 
 
-def rename_groups():
+def rename_groups(groups):
     """
     Renames groups based on various criteria extracted from their names.
 
-    This function iterates over all groups and applies specific renaming rules 
-    based on the content and format of the group's `name` attribute. The renaming 
+    This function iterates over all groups and applies specific renaming rules
+    based on the content and format of the group's `name` attribute. The renaming
     rules include:
 
-    - If the group's name contains the word "Klasse", it processes the name to 
+    - If the group's name contains the word "Klasse", it processes the name to
       strip unwanted characters and appends the current school year (`schuljahr`).
 
     - If the group's name contains "BI8", it finds digits within the name,
-      extracts content between parentheses, and reformats these components 
+      extracts content between parentheses, and reformats these components
       to create a new name pattern.
 
-    - For group names containing general parentheses (not "BI8"), it extracts 
-      content within the parentheses and integrates parts into the new name 
+    - For group names containing general parentheses (not "BI8"), it extracts
+      content within the parentheses and integrates parts into the new name
       structure, potentially incorporating identified digits.
 
     - Specifically renames groups containing 'Alle - Schueler' and 'Alle - Lehrer'
       by replacing these keywords with abbreviated forms.
 
-    - Applies specific mappings for names containing "Fach" or "Bereich" using a 
+    - Applies specific mappings for names containing "Fach" or "Bereich" using a
       predefined `mappings.mappinggroups`.
 
-    Various transformations are performed on group names to shorten designations 
-    (e.g., replacing "Schueler" with "S" and "Lehrer" with "L"), and handle other 
+    Various transformations are performed on group names to shorten designations
+    (e.g., replacing "Schueler" with "S" and "Lehrer" with "L"), and handle other
     formatting needs.
 
-    This function assumes the presence of the `groups` list and `schuljahr` variable, 
+    This function assumes the presence of the `groups` list and `schuljahr` variable,
     along with a `mappings.mappinggroups` dictionary for specialized name conversion.
     """
     for group in groups:
@@ -342,9 +343,9 @@ def rename_groups():
             group.name = mappings.mappinggroups[group.name]
 
 
-def parse_memberships(memberships):
+def parse_memberships(memberships, root):
     """
-    Parses membership data from an XML structure and appends Membership objects 
+    Parses membership data from an XML structure and appends Membership objects
     to the provided memberships list.
 
     This function iterates over XML elements representing membership relationships,
@@ -352,12 +353,12 @@ def parse_memberships(memberships):
     - The unique identifier for the group (groupid) that the member is part of.
     - The unique identifier for the member (nameid) associated with the group.
 
-    An internal counter 'i' is used to assign a unique membership ID for each 
-    relationship. For each parsed membership, the function creates a Membership 
+    An internal counter 'i' is used to assign a unique membership ID for each
+    relationship. For each parsed membership, the function creates a Membership
     object and appends it to the 'memberships' list.
 
     Args:
-        memberships (list): A list to populate with Membership objects created 
+        memberships (list): A list to populate with Membership objects created
                             from parsed XML data.
 
     XML Structure:
@@ -377,48 +378,52 @@ def parse_memberships(memberships):
         for child in elem.findall(
             "{http://www.metaventis.com/ns/cockpit/sync/1.0}sourcedid/{http://www.metaventis.com/ns/cockpit/sync/1.0}id"
         ):
-            groupid = child.text  # Get the text of the current XML element representing the group ID
+            groupid = (
+                child.text
+            )  # Get the text of the current XML element representing the group ID
         # Extract the member ID associated with the group
         for child in elem.findall(
             "{http://www.metaventis.com/ns/cockpit/sync/1.0}member/{http://www.metaventis.com/ns/cockpit/sync/1.0}sourcedid/{http://www.metaventis.com/ns/cockpit/sync/1.0}id"
         ):
-            nameid = child.text  # Get the text of the current XML element representing the member ID
+            nameid = (
+                child.text
+            )  # Get the text of the current XML element representing the member ID
         # Create a Membership object and append it to the memberships list
         memberships.append(Membership(i, groupid, nameid))
         i += 1  # Increment the membership ID counter
 
 
-def parse_xml(users, groups, memberships):
+def parse_xml(users, groups, memberships, root):
     """
     Parses XML data to populate lists of users, groups, and memberships.
 
-    This function orchestrates the parsing of XML data to create objects for 
-    users, groups, and memberships from a specified XML structure. It calls 
+    This function orchestrates the parsing of XML data to create objects for
+    users, groups, and memberships from a specified XML structure. It calls
     separate parsing functions for each type of data:
 
-    - Parses user-related XML data to create User objects and appends them 
+    - Parses user-related XML data to create User objects and appends them
       to the provided 'users' list.
-    - Parses group-related XML data to create Group objects and appends them 
+    - Parses group-related XML data to create Group objects and appends them
       to the provided 'groups' list.
-    - Parses membership-related XML data to create Membership objects and 
+    - Parses membership-related XML data to create Membership objects and
       appends them to the provided 'memberships' list.
 
     Args:
-        users (list): A list to be populated with User objects parsed from the 
+        users (list): A list to be populated with User objects parsed from the
                       XML data.
-        groups (list): A list to be populated with Group objects parsed from the 
+        groups (list): A list to be populated with Group objects parsed from the
                        XML data.
-        memberships (list): A list to be populated with Membership objects parsed 
+        memberships (list): A list to be populated with Membership objects parsed
                             from the XML data.
     """
     # Parse user data from the XML and populate the users list with User objects
-    parse_users(users)
-    
+    parse_users(users, root)
+
     # Parse group data from the XML and populate the groups list with Group objects
-    parse_groups(groups)
-    
+    parse_groups(groups, root)
+
     # Parse membership data from the XML and populate the memberships list with Membership objects
-    parse_memberships(memberships)
+    parse_memberships(memberships, root)
 
 
 def parse_year(xmlfile):
@@ -449,7 +454,7 @@ def parse_year(xmlfile):
                     print(f"{i}{j}/{i}{j+1}")
                     # Return the year as a two-digit string representing the starting year
                     return f"{i}{j}"
-                
+
                 # Construct the school year format '20ij/i+10' and check if it exists in the file
                 if f"20{i}{j}/{i+1}0" in f.read():
                     # If found, print the year
@@ -462,15 +467,15 @@ def return_webuntis_uid(user):
     """
     Returns a WebUntis UID for a given user based on their attributes.
 
-    This function generates a unique identifier for the WebUntis system 
-    using the user's given and last names or, alternatively, by slicing 
-    the user's LehrerID (teacher ID). The approach depends on the presence 
+    This function generates a unique identifier for the WebUntis system
+    using the user's given and last names or, alternatively, by slicing
+    the user's LehrerID (teacher ID). The approach depends on the presence
     of the character 'X' in the LehrerID.
 
     Logic:
-    - If the LehrerID contains 'X', it generates a UID using a short form 
+    - If the LehrerID contains 'X', it generates a UID using a short form
       of the user's name.
-    - Otherwise, the UID is derived by taking a substring from the 11th 
+    - Otherwise, the UID is derived by taking a substring from the 11th
       character onwards from the LehrerID.
 
     Args:
@@ -479,27 +484,29 @@ def return_webuntis_uid(user):
         str: A string representing the WebUntis unique identifier for the user.
     """
     return (
-        return_username(user.given, user.name, "kurzform")  # Generate a short form username if 'X' is in the LehrerID
+        return_username(
+            user.given, user.name, "kurzform"
+        )  # Generate a short form username if 'X' is in the LehrerID
         if "X" in user.lehrerid  # Check if 'X' is present in the LehrerID
-        else user.lehrerid[10:]  # Otherwise, slice the LehrerID starting from the 11th character
+        else user.lehrerid[
+            10:
+        ]  # Otherwise, slice the LehrerID starting from the 11th character
     )
 
 
 def custom_transliterate(name):
-    translations = {
-        'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 
-        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue'
-    }
+    translations = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue"}
     for original, replacement in translations.items():
         name = name.replace(original, replacement)
     return unidecode(name)
+
 
 def return_username(given, last, typ):
     """
     Generates a username based on the specified type from given and last name strings.
 
     This function constructs a username in different formats depending on the `typ` argument provided:
-    
+
     - If `typ` is "vorname.nachname", it creates a username by:
       - Translating the given name using a character mapping and taking the first token prior to any space.
       - Concatenating it with the translated last name (without spaces and hyphens) using a period as a separator.
@@ -536,11 +543,9 @@ def return_username(given, last, typ):
         #   removing spaces and hyphens, then take the first 4 characters.
         username = (
             custom_transliterate(given).split(" ")[0][:4]
-            + custom_transliterate(last)
-            .replace(" ", "")
-            .replace("-", "")[:4]
+            + custom_transliterate(last).replace(" ", "").replace("-", "")[:4]
         )
-    
+
     # Return the generated username in lowercase.
     return username.lower()
 
@@ -549,8 +554,8 @@ def strip_hyphens_from_birthday(birthday: str):
     """
     Removes hyphens from a given birthday string.
 
-    This function takes a birthday string in the format 'YYYY-MM-DD' and 
-    returns a new string with all hyphens removed, effectively returning 
+    This function takes a birthday string in the format 'YYYY-MM-DD' and
+    returns a new string with all hyphens removed, effectively returning
     the birthday as 'YYYYMMDD'.
 
     Args:
@@ -564,10 +569,10 @@ def strip_hyphens_from_birthday(birthday: str):
 
 def return_initial_password(user):
     """
-    Generates an initial password for a user based on specific attributes. 
+    Generates an initial password for a user based on specific attributes.
 
-    This function constructs the initial password using snippets from the 
-    user's teacher ID, username, and birthday. The format of the password is 
+    This function constructs the initial password using snippets from the
+    user's teacher ID, username, and birthday. The format of the password is
     a concatenation of the following components:
     - The last three characters from the user's teacher ID (lehrerid).
     - The last two characters from the user's username.
@@ -575,11 +580,11 @@ def return_initial_password(user):
     - The first two characters from the user's username.
 
     Args:
-        user: An instance of the User class containing attributes needed for 
+        user: An instance of the User class containing attributes needed for
               password generation (lehrerid, username, birthday).
 
     Returns:
-        str: The assembled initial password comprising the concatenated parts 
+        str: The assembled initial password comprising the concatenated parts
              derived from user's attributes.
     """
     # Construct the initial password using parts of the user's attributes:
@@ -600,26 +605,26 @@ def return_initial_password(user):
     return f"{part_lehrerid}{part_username_suffix}{part_birthday}{part_username_prefix}"
 
 
-def return_list_of_courses_of_student(studentid):
+def return_list_of_courses_of_student(studentid, memberships, groups):
     """
     Retrieves a list of courses for a student based on their student ID.
 
-    This function iterates through membership records to identify groups (courses) 
-    that a student is associated with, using the provided student ID. It attempts 
-    to map each membership to a group name from the list of known groups, collecting 
+    This function iterates through membership records to identify groups (courses)
+    that a student is associated with, using the provided student ID. It attempts
+    to map each membership to a group name from the list of known groups, collecting
     these names into a course list.
 
-    If a group name is found, it is added to the list of courses for the student. 
-    An exception handling mechanism is in place to ensure that, in cases where a 
-    group's name cannot be found (possibly due to a mismatch or empty courses), 
+    If a group name is found, it is added to the list of courses for the student.
+    An exception handling mechanism is in place to ensure that, in cases where a
+    group's name cannot be found (possibly due to a mismatch or empty courses),
     the function will simply return an empty list.
 
     Args:
         studentid: A string representing the student ID used to lookup memberships.
 
     Returns:
-        list: A list of strings representing the names of courses the student 
-              is enrolled in. If no courses are found or an error occurs, an 
+        list: A list of strings representing the names of courses the student
+              is enrolled in. If no courses are found or an error occurs, an
               empty list is returned.
     """
     # Initialize an empty list to store course names for a given student
@@ -634,11 +639,11 @@ def return_list_of_courses_of_student(studentid):
         try:
             # Attempt to find the first group name corresponding to the course ID
             groupname = [group.name for group in groups if group.groupid == course][0]
-            
+
             # If a group name is found and it's not an empty string, add it to the courses list
             if groupname != "":
                 courseslist.append(groupname)
-                
+
         except:
             # If an exception occurs (likely due to the list being empty), return an empty courses list
             courseslist = []
@@ -647,7 +652,7 @@ def return_list_of_courses_of_student(studentid):
     return courseslist
 
 
-def return_class_of_user(user):
+def return_class_of_user(user, memberships):
     """
     Determines the class of a given user based on their LehrerID and a class mapping.
 
@@ -669,11 +674,11 @@ def return_class_of_user(user):
              otherwise None.
     """
     # Retrieve the list of courses the user is enrolled in based on their LehrerID
-    klassen = return_list_of_courses_of_student(user.lehrerid)
-    
+    klassen = return_list_of_courses_of_student(user.lehrerid, memberships)
+
     # Access the mapping dictionary that maps class identifiers to class names
     mappingklassen = mappings.mappingklassen
-    
+
     # Iterate through each item in the class mapping
     for item in mappingklassen:
         # Check if the class identifier with the current school year is present in the user's courses
@@ -683,7 +688,11 @@ def return_class_of_user(user):
 
 
 def create_jamf_accounts(
-    nameOfOutputCsv: str, dict_name_serial: dict, klasse_filter: str = None
+    nameOfOutputCsv: str,
+    dict_name_serial: dict,
+    users,
+    memberships,
+    klasse_filter: str = None,
 ):
     """
     Generates a JAMF-compatible CSV file with account details for users, potentially
@@ -694,17 +703,17 @@ def create_jamf_accounts(
     The CSV file is augmented with serial numbers, drawn from a dictionary, if available.
 
     The output CSV will include headers for user credentials, including username, email, first name,
-    last name, group assignments, password, and optionally, serial numbers. The function ensures 
+    last name, group assignments, password, and optionally, serial numbers. The function ensures
     proper handling of serial number assignments to users.
 
     Args:
         nameOfOutputCsv (str): The path and name of the output CSV file to be created.
         dict_name_serial (dict): A dictionary mapping names to serial numbers for device assignment.
-        klasse_filter (str, optional): A filter string representing a class name to limit which users 
+        klasse_filter (str, optional): A filter string representing a class name to limit which users
                                        are included. Defaults to None.
 
     Writes:
-        A CSV file at the specified path with the user and device serial number information, 
+        A CSV file at the specified path with the user and device serial number information,
         formatted for JAMF account provisioning.
     """
     ser_nums = []  # List to hold serial numbers if required
@@ -730,7 +739,7 @@ def create_jamf_accounts(
                 continue
 
             # Retrieve user courses and formats them into groups
-            courses = return_list_of_courses_of_student(user.lehrerid)
+            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
             groups = ",".join(courses)
             # Map user info to the specific CSV structure
             user_data_mapping = {
@@ -758,24 +767,26 @@ def create_jamf_accounts(
                 )
 
 
-def create_jamf_accounts_teachers(nameOfOutputCsv: str, klasse_filter: str = None):
+def create_jamf_accounts_teachers(
+    nameOfOutputCsv: str, memberships, users, klasse_filter: str = None
+):
     """
     Generates a JAMF-compatible CSV file specifically for teachers' accounts.
 
     This function creates a CSV file with account details for teachers by filtering users
-    who belong to the "AlleL" (all teachers) group. It formats the user data to match 
-    JAMF requirements. The function processes and updates group assignments, constructing 
-    a list of teacher-specific or general access groups and altering specific group names 
+    who belong to the "AlleL" (all teachers) group. It formats the user data to match
+    JAMF requirements. The function processes and updates group assignments, constructing
+    a list of teacher-specific or general access groups and altering specific group names
     to fit desired formats.
 
-    The CSV content is tailored for a school management system, including headers and 
-    user credentials such as username, email, associated teacher and general groups, 
-    and an initial password. If any user has no email mapping available in the external 
+    The CSV content is tailored for a school management system, including headers and
+    user credentials such as username, email, associated teacher and general groups,
+    and an initial password. If any user has no email mapping available in the external
     mapping, a default WebUntis UID is generated.
 
     Args:
         nameOfOutputCsv (str): The path and name of the output CSV file to be created.
-        klasse_filter (str, optional): Currently not used in this implementation but kept 
+        klasse_filter (str, optional): Currently not used in this implementation but kept
                                        for interface consistency.
 
     Writes:
@@ -787,7 +798,7 @@ def create_jamf_accounts_teachers(nameOfOutputCsv: str, klasse_filter: str = Non
 
         for user in users:
             # Get the list of courses for each user and convert to a CSV-friendly format
-            courses = return_list_of_courses_of_student(user.lehrerid)
+            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
             groups = f'{"##".join(courses)}'.replace("##", ",")
 
             # Check if "AlleL" (assumed to mean 'all teachers') is in the group list
@@ -814,7 +825,7 @@ def create_jamf_accounts_teachers(nameOfOutputCsv: str, klasse_filter: str = Non
                 groups = ",".join(updated_groups)
                 groups = (
                     groups
-                    + ", iPads-Lehrerzimmer_1-15, iPads-Lehrerzimmer_alle, iPads-Lehrerzimmer_16-30"
+                    + ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30,FW-LZ-01-15,FW-LZ-16-30,FW-LZ-alle,FW-1.Stock-01-15,FW-1.Stock-16-30,FW-1.Stock-alle"
                 )
 
                 # Map user's email to a specific key or use an alternate ID
@@ -840,59 +851,246 @@ def create_jamf_accounts_teachers(nameOfOutputCsv: str, klasse_filter: str = Non
                 )
 
 
+def load_email_to_kuerzel(users_csv):
+    return mappings.load_email_to_kuerzel(users_csv)
+
+
+def load_mappinggroups(mappinggroups_csv):
+    return mappings.load_mappinggroups(mappinggroups_csv)
+
+
+def create_jamf_accounts_teachers(
+    nameOfOutputCsv: str,
+    email_to_kuerzel: dict,
+    users,
+    memberships,
+    klasse_filter: str = None,
+):
+    """
+    Generates a JAMF-compatible CSV file specifically for teachers' accounts.
+    """
+    with open(nameOfOutputCsv, "w", encoding="utf-8") as f:
+        # Schreiben der Kopfzeile
+        f.write("Username;Email;FirstName;LastName;TeacherGroups;Groups;Password\n")
+
+        for user in users:
+            # Abrufen der Kurse des Lehrers
+            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
+            groups = ",".join(courses)
+
+            # Prüfen, ob "AlleL" in den Gruppen ist
+            if "AlleL" in groups:
+                # Filtern der Gruppen basierend auf bestimmten Kriterien
+                filtered_groups = []
+                for group in groups.split(","):
+                    if any(
+                        sub in group for sub in ["09", "10", "EF", "Q1"]
+                    ) and group not in ["EFL24", "Q1L24", "Q2L24"]:
+                        filtered_groups.append(group)
+
+                # Aktualisieren der Gruppennamen
+                updated_groups = []
+                for group in filtered_groups:
+                    if (
+                        len(group) == 6
+                        and group[0:2] in ["09", "10"]
+                        and group[3] == "L"
+                    ):
+                        updated_groups.append(group[:3] + "S" + group[4:])
+                    else:
+                        updated_groups.append(group)
+                groups = ",".join(updated_groups)
+                groups += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+
+                # Mapping von E-Mail zu Kürzel
+                email_lower = user.email.lower()
+                email_kuerzel = email_to_kuerzel.get(
+                    email_lower, return_webuntis_uid(user)
+                )
+
+                # Definieren der Benutzerdaten für das CSV
+                user_data_mapping = {
+                    "Username": f"164501-{return_username(email_kuerzel, '', 'kurzform')}",
+                    "Email": f"{return_username(email_kuerzel, '', 'kurzform')}@164501.nrw.schule",
+                    "FirstName": email_kuerzel,
+                    "LastName": email_kuerzel,
+                    "TeacherGroups": groups,
+                    "Groups": "AlleL",
+                    "Password": return_initial_password(user),
+                }
+
+                # Schreiben der Benutzerdaten in das CSV
+                f.write(
+                    f"{user_data_mapping['Username']};{user_data_mapping['Email']};"
+                    f"{user_data_mapping['FirstName']};{user_data_mapping['LastName']};"
+                    f"{user_data_mapping['TeacherGroups']};{user_data_mapping['Groups']};"
+                    f"{user_data_mapping['Password']}\n"
+                )
+
+
+def export_users_to_csv(users, file_name):
+    with open(file_name, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        # Schreibe CSV-Header
+        writer.writerow(["given", "name", "username", "email", "kuerzel"])
+
+        # Schreibe Benutzerdaten
+        for user in users:
+            writer.writerow(
+                [
+                    user.given,
+                    user.name,
+                    user.username,
+                    user.email.lower(),
+                    user.username,
+                ]
+            )
+
+
+def export_groups_to_csv(groups, file_name):
+    with open(file_name, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        # Schreibe CSV-Header
+        writer.writerow(["groupid", "parent", "name"])
+
+        # Schreibe Gruppendaten
+        for group in groups:
+            writer.writerow([group.groupid, group.parent, group.name])
+
+
+def main_export(inputaktuell, exportdate):
+    # Initialisiere leere Listen
+    users = []
+    groups = []
+    memberships = []
+
+    # Parse das XML
+    tree = ET.parse(inputaktuell)
+    print(tree)
+    global schuljahr  # Stelle sicher, dass 'schuljahr' global sichtbar ist
+    schuljahr = parse_year(inputaktuell).replace("/", "")
+    root = tree.getroot()
+    parse_xml(users, groups, memberships, root)
+
+    # Exportiere Benutzer und Gruppen
+    export_users_to_csv(users, f"users{exportdate}.csv")
+    export_groups_to_csv(groups, f"groups{exportdate}.csv")
+
+    # Benenne Gruppen um
+    rename_groups(groups)
+
+    # Exportiere erneut, falls Gruppen umbenannt wurden
+    export_groups_to_csv(groups, f"groups_{exportdate}_renamed.csv")
+
+    print("CSV-Dateien wurden erfolgreich exportiert.")
+
+
+def main_generate_kuerzel(users_csv, exportdate):
+    email_to_kuerzel = load_email_to_kuerzel(users_csv)
+    print("Kürzel-Mapping wurde aus 'users.csv' geladen und kann nun verwendet werden.")
+
+    # Lade das Mappinggroups
+    mappinggroups_csv = f"groups_{exportdate}_renamed.csv"
+    if not os.path.isfile(mappinggroups_csv):
+        print(
+            f"Fehler: '{mappinggroups_csv}' existiert nicht. Bitte führe zuerst die 'export' Option aus."
+        )
+        return
+    mappinggroups = mappings.load_mappinggroups(mappinggroups_csv)
+
+    # Aktualisiere das 'mappings.mappinggroups' Dictionary
+    mappings.mappinggroups = mappinggroups
+
+    # Generiere die JAMF-Accounts für Lehrer
+    output_csv_teachers = f"./csv/08-jamf{exportdate}.csv"
+    create_jamf_accounts_teachers(output_csv_teachers, email_to_kuerzel)
+
+    print(f"Lehrer-Konten wurden in '{output_csv_teachers}' erstellt.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Schild2Jamf Skript mit Optionen.")
+    parser.add_argument(
+        "option",
+        choices=["export", "generate_kuerzel"],
+        help="Option auswählen: 'export' zum Erstellen der CSV-Dateien, 'generate_kuerzel' zum Laden der Kürzel aus CSV.",
+    )
+    args = parser.parse_args()
+
+    # Definiere den Pfad zur aktuellen XML-Datei
+    inputaktuell = "./xml/SchILD20241007.xml"
+
+    # Extrahiere das Datum aus dem Dateinamen
+    exportdate = "".join([i for i in inputaktuell if i.isdigit()])
+
+    if args.option == "export":
+        main_export(inputaktuell, exportdate)
+    elif args.option == "generate_kuerzel":
+        users_csv = f"users{exportdate}.csv"
+        if not os.path.isfile(users_csv):
+            print(
+                f"Fehler: '{users_csv}' existiert nicht. Bitte führe zuerst die 'export' Option aus."
+            )
+            return
+        main_generate_kuerzel(users_csv, exportdate)
+
+
 # =========================
 # Main Block
 # =========================
 
+
 if __name__ == "__main__":
-    # Set the path to the current XML file containing the user, group, and membership information
-    inputaktuell = "./xml/SchILD20241007.xml"
-    
-    # Extract the date from the input file name by filtering digits
-    exportdate = "".join([i for i in inputaktuell if i.isdigit()])
-    
-    # Print the extracted export date
-    print(exportdate)
-    
-    # Initialize empty lists to store parsed data for users, groups, and memberships
-    users = []
-    groups = []
-    memberships = []
-    
-    # Parse the XML file to build an ElementTree object
-    tree = ET.parse(inputaktuell)
-    
-    # Determine the school year from the XML file and clean up the format
-    schuljahr = parse_year(inputaktuell).replace("/", "")
-    
-    # Get the root element of the XML tree
-    root = tree.getroot()
-    
-    # Parse the XML to populate the lists of users, groups, and memberships
-    parse_xml(users, groups, memberships)
-    
-    # Rename groups based on preset rules and mappings
-    rename_groups()
-    
-    # Generate a dictionary mapping names to device serial numbers
-    dict_name_serial = utils.get_dict_name_serial("devices20241010.csv")
-    
-    # Create JAMF accounts for specific classes and teachers and export them to CSV files
-    
-    # Uncomment the next line to print each user's lehrerid for debugging or logging purposes
-    # for user in users:
-    #     print(user.lehrerid)
+    main()
 
-    # Generate CSV files for different classes based on a specific class filter
-    create_jamf_accounts(f"./csv/01-jamf{exportdate}.csv", dict_name_serial, "EF")
-    create_jamf_accounts(f"./csv/02-jamf{exportdate}.csv", dict_name_serial, "10b")
-    create_jamf_accounts(f"./csv/03-jamf{exportdate}.csv", dict_name_serial, "10a")
-    create_jamf_accounts(f"./csv/04-jamf{exportdate}.csv", dict_name_serial, "10c")
-    create_jamf_accounts(f"./csv/05-jamf{exportdate}.csv", dict_name_serial, "9a")
-    create_jamf_accounts(f"./csv/06-jamf{exportdate}.csv", dict_name_serial, "9b")
-    create_jamf_accounts(f"./csv/07-jamf{exportdate}.csv", dict_name_serial, "9c")
-    
-    # Create a CSV for teacher accounts
-    create_jamf_accounts_teachers(f"./csv/08-jamf{exportdate}.csv", "None")
 
-    # Dies ist ein Test.
+# if __name__ == "__main__":
+#     # Set the path to the current XML file containing the user, group, and membership information
+#     inputaktuell = "./xml/SchILD20241007.xml"
+
+#     # Extract the date from the input file name by filtering digits
+#     exportdate = "".join([i for i in inputaktuell if i.isdigit()])
+
+#     # Print the extracted export date
+#     print(exportdate)
+
+#     # Initialize empty lists to store parsed data for users, groups, and memberships
+#     users = []
+#     groups = []
+#     memberships = []
+
+#     # Parse the XML file to build an ElementTree object
+#     tree = ET.parse(inputaktuell)
+
+#     # Determine the school year from the XML file and clean up the format
+#     schuljahr = parse_year(inputaktuell).replace("/", "")
+
+#     # Get the root element of the XML tree
+#     root = tree.getroot()
+
+#     # Parse the XML to populate the lists of users, groups, and memberships
+#     parse_xml(users, groups, memberships)
+
+#     # Rename groups based on preset rules and mappings
+#     rename_groups()
+
+#     # Generate a dictionary mapping names to device serial numbers
+#     dict_name_serial = utils.get_dict_name_serial("devices20241010.csv")
+
+
+#     # Generate CSV files for different classes based on a specific class filter
+#     create_jamf_accounts(f"./csv/01-jamf{exportdate}.csv", dict_name_serial, "EF")
+#     create_jamf_accounts(f"./csv/02-jamf{exportdate}.csv", dict_name_serial, "10b")
+#     create_jamf_accounts(f"./csv/03-jamf{exportdate}.csv", dict_name_serial, "10a")
+#     create_jamf_accounts(f"./csv/04-jamf{exportdate}.csv", dict_name_serial, "10c")
+#     create_jamf_accounts(f"./csv/05-jamf{exportdate}.csv", dict_name_serial, "9a")
+#     create_jamf_accounts(f"./csv/06-jamf{exportdate}.csv", dict_name_serial, "9b")
+#     create_jamf_accounts(f"./csv/07-jamf{exportdate}.csv", dict_name_serial, "9c")
+#     create_jamf_accounts(f"./csv/09-jamf{exportdate}.csv", dict_name_serial, "5c")
+
+#     # Create a CSV for teacher accounts
+#     create_jamf_accounts_teachers(f"./csv/08-jamf{exportdate}.csv", "None")
+
+#     # Dies ist ein Test.
