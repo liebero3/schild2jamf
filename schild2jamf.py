@@ -894,3 +894,5 @@ if __name__ == "__main__":
     
     # Create a CSV for teacher accounts
     create_jamf_accounts_teachers(f"./csv/08-jamf{exportdate}.csv", "None")
+
+    # Dies ist ein Test.
