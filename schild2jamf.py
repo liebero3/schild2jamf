@@ -608,47 +608,25 @@ def return_initial_password(user):
 def return_list_of_courses_of_student(studentid, memberships, groups):
     """
     Retrieves a list of courses for a student based on their student ID.
-
-    This function iterates through membership records to identify groups (courses)
-    that a student is associated with, using the provided student ID. It attempts
-    to map each membership to a group name from the list of known groups, collecting
-    these names into a course list.
-
-    If a group name is found, it is added to the list of courses for the student.
-    An exception handling mechanism is in place to ensure that, in cases where a
-    group's name cannot be found (possibly due to a mismatch or empty courses),
-    the function will simply return an empty list.
-
-    Args:
-        studentid: A string representing the student ID used to lookup memberships.
-
-    Returns:
-        list: A list of strings representing the names of courses the student
-              is enrolled in. If no courses are found or an error occurs, an
-              empty list is returned.
     """
     # Initialize an empty list to store course names for a given student
     courseslist = []
 
-    # Iterate over the group IDs the student is a member of, based on their student ID
-    for course in [
+    # Get group IDs the student is a member of
+    student_memberships = [
         membership.groupid
         for membership in memberships
         if membership.nameid == studentid
-    ]:
-        try:
-            # Attempt to find the first group name corresponding to the course ID
-            groupname = [group.name for group in groups if group.groupid == course][0]
+    ]
 
-            # If a group name is found and it's not an empty string, add it to the courses list
-            if groupname != "":
-                courseslist.append(groupname)
+    # Map group IDs to group names using the provided groups list
+    for group_id in student_memberships:
+        group_matches = [group.name for group in groups if group.groupid == group_id]
+        if group_matches:
+            group_name = group_matches[0]
+            if group_name:
+                courseslist.append(group_name)
 
-        except:
-            # If an exception occurs (likely due to the list being empty), return an empty courses list
-            courseslist = []
-
-    # Return the list of course names for the student
     return courseslist
 
 
@@ -863,7 +841,9 @@ def create_jamf_accounts_teachers(
     nameOfOutputCsv: str,
     email_to_kuerzel: dict,
     users,
+    groups,
     memberships,
+    mappinggroups: dict,
     klasse_filter: str = None,
 ):
     """
@@ -874,33 +854,39 @@ def create_jamf_accounts_teachers(
         f.write("Username;Email;FirstName;LastName;TeacherGroups;Groups;Password\n")
 
         for user in users:
+            # Überprüfe, ob der Benutzer ein Lehrer ist
+            if user.institutionrole not in ("faculty", "extern"):
+                continue
             # Abrufen der Kurse des Lehrers
-            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
-            groups = ",".join(courses)
+            courses = return_list_of_courses_of_student(
+                user.lehrerid, memberships, groups
+            )
+            groups_list = ",".join(courses)
 
             # Prüfen, ob "AlleL" in den Gruppen ist
-            if "AlleL" in groups:
+            if "Alle - Lehrer" in groups_list:
                 # Filtern der Gruppen basierend auf bestimmten Kriterien
                 filtered_groups = []
-                for group in groups.split(","):
+                for group in groups_list.split(","):
                     if any(
                         sub in group for sub in ["09", "10", "EF", "Q1"]
                     ) and group not in ["EFL24", "Q1L24", "Q2L24"]:
                         filtered_groups.append(group)
 
-                # Aktualisieren der Gruppennamen
+                # Aktualisieren der Gruppennamen mit dem mappinggroups Dictionary
                 updated_groups = []
                 for group in filtered_groups:
+                    mapped_group = mappinggroups.get(group, group)
                     if (
-                        len(group) == 6
-                        and group[0:2] in ["09", "10"]
-                        and group[3] == "L"
+                        len(mapped_group) == 6
+                        and mapped_group[0:2] in ["09", "10"]
+                        and mapped_group[3] == "L"
                     ):
-                        updated_groups.append(group[:3] + "S" + group[4:])
+                        updated_groups.append(mapped_group[:3] + "S" + mapped_group[4:])
                     else:
-                        updated_groups.append(group)
-                groups = ",".join(updated_groups)
-                groups += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+                        updated_groups.append(mapped_group)
+                groups_str = ",".join(updated_groups)
+                groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
 
                 # Mapping von E-Mail zu Kürzel
                 email_lower = user.email.lower()
@@ -914,7 +900,7 @@ def create_jamf_accounts_teachers(
                     "Email": f"{return_username(email_kuerzel, '', 'kurzform')}@164501.nrw.schule",
                     "FirstName": email_kuerzel,
                     "LastName": email_kuerzel,
-                    "TeacherGroups": groups,
+                    "TeacherGroups": groups_str,
                     "Groups": "AlleL",
                     "Password": return_initial_password(user),
                 }
@@ -953,11 +939,11 @@ def export_groups_to_csv(groups, file_name):
         writer = csv.writer(file)
 
         # Schreibe CSV-Header
-        writer.writerow(["groupid", "parent", "name"])
+        writer.writerow(["groupid", "parent", "name", "newname"])
 
         # Schreibe Gruppendaten
         for group in groups:
-            writer.writerow([group.groupid, group.parent, group.name])
+            writer.writerow([group.groupid, group.parent, group.name, group.name])
 
 
 def main_export(inputaktuell, exportdate):
@@ -988,24 +974,38 @@ def main_export(inputaktuell, exportdate):
 
 
 def main_generate_kuerzel(users_csv, exportdate):
+    # Lade die Email-zu-Kürzel-Zuordnung
     email_to_kuerzel = load_email_to_kuerzel(users_csv)
     print("Kürzel-Mapping wurde aus 'users.csv' geladen und kann nun verwendet werden.")
 
     # Lade das Mappinggroups
-    mappinggroups_csv = f"groups_{exportdate}_renamed.csv"
+    mappinggroups_csv = f"groups{exportdate}.csv"
     if not os.path.isfile(mappinggroups_csv):
         print(
             f"Fehler: '{mappinggroups_csv}' existiert nicht. Bitte führe zuerst die 'export' Option aus."
         )
         return
-    mappinggroups = mappings.load_mappinggroups(mappinggroups_csv)
-
-    # Aktualisiere das 'mappings.mappinggroups' Dictionary
-    mappings.mappinggroups = mappinggroups
+    mappinggroups = load_mappinggroups(mappinggroups_csv)
 
     # Generiere die JAMF-Accounts für Lehrer
     output_csv_teachers = f"./csv/08-jamf{exportdate}.csv"
-    create_jamf_accounts_teachers(output_csv_teachers, email_to_kuerzel)
+
+    # Lade Benutzer, Gruppen und Mitgliedschaften
+    users = []
+    groups = []
+    memberships = []
+
+    # Parse das XML erneut, um aktuelle Daten zu erhalten
+    inputaktuell = "./xml/SchILD20241007.xml"
+    tree = ET.parse(inputaktuell)
+    root = tree.getroot()
+    parse_xml(users, groups, memberships, root)
+
+
+    # Rufe die angepasste Funktion auf und übergebe die geladenen Daten
+    create_jamf_accounts_teachers(
+        output_csv_teachers, email_to_kuerzel, users, groups, memberships, mappinggroups
+    )
 
     print(f"Lehrer-Konten wurden in '{output_csv_teachers}' erstellt.")
 
@@ -1044,53 +1044,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# if __name__ == "__main__":
-#     # Set the path to the current XML file containing the user, group, and membership information
-#     inputaktuell = "./xml/SchILD20241007.xml"
-
-#     # Extract the date from the input file name by filtering digits
-#     exportdate = "".join([i for i in inputaktuell if i.isdigit()])
-
-#     # Print the extracted export date
-#     print(exportdate)
-
-#     # Initialize empty lists to store parsed data for users, groups, and memberships
-#     users = []
-#     groups = []
-#     memberships = []
-
-#     # Parse the XML file to build an ElementTree object
-#     tree = ET.parse(inputaktuell)
-
-#     # Determine the school year from the XML file and clean up the format
-#     schuljahr = parse_year(inputaktuell).replace("/", "")
-
-#     # Get the root element of the XML tree
-#     root = tree.getroot()
-
-#     # Parse the XML to populate the lists of users, groups, and memberships
-#     parse_xml(users, groups, memberships)
-
-#     # Rename groups based on preset rules and mappings
-#     rename_groups()
-
-#     # Generate a dictionary mapping names to device serial numbers
-#     dict_name_serial = utils.get_dict_name_serial("devices20241010.csv")
-
-
-#     # Generate CSV files for different classes based on a specific class filter
-#     create_jamf_accounts(f"./csv/01-jamf{exportdate}.csv", dict_name_serial, "EF")
-#     create_jamf_accounts(f"./csv/02-jamf{exportdate}.csv", dict_name_serial, "10b")
-#     create_jamf_accounts(f"./csv/03-jamf{exportdate}.csv", dict_name_serial, "10a")
-#     create_jamf_accounts(f"./csv/04-jamf{exportdate}.csv", dict_name_serial, "10c")
-#     create_jamf_accounts(f"./csv/05-jamf{exportdate}.csv", dict_name_serial, "9a")
-#     create_jamf_accounts(f"./csv/06-jamf{exportdate}.csv", dict_name_serial, "9b")
-#     create_jamf_accounts(f"./csv/07-jamf{exportdate}.csv", dict_name_serial, "9c")
-#     create_jamf_accounts(f"./csv/09-jamf{exportdate}.csv", dict_name_serial, "5c")
-
-#     # Create a CSV for teacher accounts
-#     create_jamf_accounts_teachers(f"./csv/08-jamf{exportdate}.csv", "None")
-
-#     # Dies ist ein Test.
