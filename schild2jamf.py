@@ -2,7 +2,7 @@
 
 import argparse
 import xml.etree.ElementTree as ET
-import mappings
+# import mappings
 import re
 import utils
 import os
@@ -213,134 +213,134 @@ def parse_groups(groups, root):
         groups.append(Group(groupid, name, parent))
 
 
-def rename_groups(groups):
-    """
-    Renames groups based on various criteria extracted from their names.
+# def rename_groups(groups):
+#     """
+#     Renames groups based on various criteria extracted from their names.
 
-    This function iterates over all groups and applies specific renaming rules
-    based on the content and format of the group's `name` attribute. The renaming
-    rules include:
+#     This function iterates over all groups and applies specific renaming rules
+#     based on the content and format of the group's `name` attribute. The renaming
+#     rules include:
 
-    - If the group's name contains the word "Klasse", it processes the name to
-      strip unwanted characters and appends the current school year (`schuljahr`).
+#     - If the group's name contains the word "Klasse", it processes the name to
+#       strip unwanted characters and appends the current school year (`schuljahr`).
 
-    - If the group's name contains "BI8", it finds digits within the name,
-      extracts content between parentheses, and reformats these components
-      to create a new name pattern.
+#     - If the group's name contains "BI8", it finds digits within the name,
+#       extracts content between parentheses, and reformats these components
+#       to create a new name pattern.
 
-    - For group names containing general parentheses (not "BI8"), it extracts
-      content within the parentheses and integrates parts into the new name
-      structure, potentially incorporating identified digits.
+#     - For group names containing general parentheses (not "BI8"), it extracts
+#       content within the parentheses and integrates parts into the new name
+#       structure, potentially incorporating identified digits.
 
-    - Specifically renames groups containing 'Alle - Schueler' and 'Alle - Lehrer'
-      by replacing these keywords with abbreviated forms.
+#     - Specifically renames groups containing 'Alle - Schueler' and 'Alle - Lehrer'
+#       by replacing these keywords with abbreviated forms.
 
-    - Applies specific mappings for names containing "Fach" or "Bereich" using a
-      predefined `mappings.mappinggroups`.
+#     - Applies specific mappings for names containing "Fach" or "Bereich" using a
+#       predefined `mappings.mappinggroups`.
 
-    Various transformations are performed on group names to shorten designations
-    (e.g., replacing "Schueler" with "S" and "Lehrer" with "L"), and handle other
-    formatting needs.
+#     Various transformations are performed on group names to shorten designations
+#     (e.g., replacing "Schueler" with "S" and "Lehrer" with "L"), and handle other
+#     formatting needs.
 
-    This function assumes the presence of the `groups` list and `schuljahr` variable,
-    along with a `mappings.mappinggroups` dictionary for specialized name conversion.
-    """
-    for group in groups:
-        # Check if the group's name contains "Klasse"
-        if "Klasse" in group.name:
-            # Process the name by stripping unwanted characters and appending the school year
-            group.name = (
-                f'{group.name[7:].replace(" ", "").replace("Schueler", "S").replace("Lehrer", "L").replace("--", "").replace("-", "").replace(")", "").replace("UNESCO","U")}'
-                + f"{schuljahr}"
-            )
+#     This function assumes the presence of the `groups` list and `schuljahr` variable,
+#     along with a `mappings.mappinggroups` dictionary for specialized name conversion.
+#     """
+#     for group in groups:
+#         # Check if the group's name contains "Klasse"
+#         if "Klasse" in group.name:
+#             # Process the name by stripping unwanted characters and appending the school year
+#             group.name = (
+#                 f'{group.name[7:].replace(" ", "").replace("Schueler", "S").replace("Lehrer", "L").replace("--", "").replace("-", "").replace(")", "").replace("UNESCO","U")}'
+#                 + f"{schuljahr}"
+#             )
 
-        # For groups involving "BI8" (assumed special processing)
-        if "BI8" in group.name:
-            # Find positions of parentheses in the name
-            start = group.name.rfind("(")
-            ende = group.name.rfind(")")
-            try:
-                # Search for a digit in the name outside the parentheses
-                m = re.search(r"\d", group.name)
-                digitfound = m.group(0)
-            except:
-                digitfound = ""
+#         # For groups involving "BI8" (assumed special processing)
+#         if "BI8" in group.name:
+#             # Find positions of parentheses in the name
+#             start = group.name.rfind("(")
+#             ende = group.name.rfind(")")
+#             try:
+#                 # Search for a digit in the name outside the parentheses
+#                 m = re.search(r"\d", group.name)
+#                 digitfound = m.group(0)
+#             except:
+#                 digitfound = ""
 
-            # Extract content between parentheses, split and clean it
-            templist = (
-                group.name[start - 3 : ende]
-                .replace(" ", "")
-                .replace("(9", "")
-                .split(",")
-            )
+#             # Extract content between parentheses, split and clean it
+#             templist = (
+#                 group.name[start - 3 : ende]
+#                 .replace(" ", "")
+#                 .replace("(9", "")
+#                 .split(",")
+#             )
 
-            # Construct the new name based on refined components
-            group.name = (
-                f"{templist[0]}{templist[1] if templist[1] == 'GK' or templist[1] == 'LK' else ''}{digitfound if templist[1] == 'GK' or templist[1] == 'LK' else ''}{templist[2]}{templist[3]}".replace(
-                    "Schueler", "S"
-                )
-                .replace("Lehrer", "L")
-                .replace("--", "-")
-                .replace(")", "")
-                + f"{schuljahr}"
-            )
+#             # Construct the new name based on refined components
+#             group.name = (
+#                 f"{templist[0]}{templist[1] if templist[1] == 'GK' or templist[1] == 'LK' else ''}{digitfound if templist[1] == 'GK' or templist[1] == 'LK' else ''}{templist[2]}{templist[3]}".replace(
+#                     "Schueler", "S"
+#                 )
+#                 .replace("Lehrer", "L")
+#                 .replace("--", "-")
+#                 .replace(")", "")
+#                 + f"{schuljahr}"
+#             )
 
-        # General processing for names with parentheses that are not "BI8"
-        elif "(" in group.name:
-            # Find the start and end positions of the first set of parentheses
-            start = group.name.rfind("(")
-            ende = group.name.rfind(")")
-            try:
-                # Attempt to find a digit in the main part of the name
-                m = re.search(r"\d", group.name)
-                digitfound = m.group(0)
-            except:
-                digitfound = ""
+#         # General processing for names with parentheses that are not "BI8"
+#         elif "(" in group.name:
+#             # Find the start and end positions of the first set of parentheses
+#             start = group.name.rfind("(")
+#             ende = group.name.rfind(")")
+#             try:
+#                 # Attempt to find a digit in the main part of the name
+#                 m = re.search(r"\d", group.name)
+#                 digitfound = m.group(0)
+#             except:
+#                 digitfound = ""
 
-            # Extract, process and split the content within parentheses
-            templist = (
-                group.name[start + 1 : ende]
-                .replace(" ", "")
-                .replace("UNESCO", "U")
-                .split(",")
-            )
+#             # Extract, process and split the content within parentheses
+#             templist = (
+#                 group.name[start + 1 : ende]
+#                 .replace(" ", "")
+#                 .replace("UNESCO", "U")
+#                 .split(",")
+#             )
 
-            # Reassemble the new group name
-            group.name = (
-                f"{templist[0]}{templist[1] if templist[1] == 'GK' or templist[1] == 'LK' else ''}{digitfound if templist[1] == 'GK' or templist[1] == 'LK' else ''}{templist[2]}{templist[3]}".replace(
-                    "Schueler", "S"
-                )
-                .replace("Lehrer", "L")
-                .replace("--", "-")
-                .replace(")", "")
-                + f"{schuljahr}"
-            )
+#             # Reassemble the new group name
+#             group.name = (
+#                 f"{templist[0]}{templist[1] if templist[1] == 'GK' or templist[1] == 'LK' else ''}{digitfound if templist[1] == 'GK' or templist[1] == 'LK' else ''}{templist[2]}{templist[3]}".replace(
+#                     "Schueler", "S"
+#                 )
+#                 .replace("Lehrer", "L")
+#                 .replace("--", "-")
+#                 .replace(")", "")
+#                 + f"{schuljahr}"
+#             )
 
-        # Process specific group names containing "Alle - Schueler"
-        if "Alle - Schueler" in group.name:
-            group.name = (
-                "Alle-Schueler".replace("Schueler", "S")
-                .replace("Lehrer", "L")
-                .replace(")", "")
-                .replace("-", "")
-            )
+#         # Process specific group names containing "Alle - Schueler"
+#         if "Alle - Schueler" in group.name:
+#             group.name = (
+#                 "Alle-Schueler".replace("Schueler", "S")
+#                 .replace("Lehrer", "L")
+#                 .replace(")", "")
+#                 .replace("-", "")
+#             )
 
-        # Process specific group names containing "Alle - Lehrer"
-        if "Alle - Lehrer" in group.name:
-            group.name = (
-                "Alle-Lehrer".replace("Schueler", "S")
-                .replace("Lehrer", "L")
-                .replace(")", "")
-                .replace("-", "")
-            )
+#         # Process specific group names containing "Alle - Lehrer"
+#         if "Alle - Lehrer" in group.name:
+#             group.name = (
+#                 "Alle-Lehrer".replace("Schueler", "S")
+#                 .replace("Lehrer", "L")
+#                 .replace(")", "")
+#                 .replace("-", "")
+#             )
 
-        # Map specialized names for groups containing "Fach"
-        if "Fach" in group.name:
-            group.name = mappings.mappinggroups[group.name]
+#         # Map specialized names for groups containing "Fach"
+#         if "Fach" in group.name:
+#             group.name = mappings.mappinggroups[group.name]
 
-        # Map specialized names for groups containing "Bereich"
-        if "Bereich" in group.name:
-            group.name = mappings.mappinggroups[group.name]
+#         # Map specialized names for groups containing "Bereich"
+#         if "Bereich" in group.name:
+#             group.name = mappings.mappinggroups[group.name]
 
 
 def parse_memberships(memberships, root):
@@ -630,39 +630,79 @@ def return_list_of_courses_of_student(studentid, memberships, groups):
     return courseslist
 
 
-def return_class_of_user(user, memberships):
-    """
-    Determines the class of a given user based on their LehrerID and a class mapping.
+# def return_class_of_user(user, memberships):
+#     """
+#     Determines the class of a given user based on their LehrerID and a class mapping.
 
-    This function first obtains a list of courses the user is enrolled in by calling
-    `return_list_of_courses_of_student(user.lehrerid)`. It then uses a predefined
-    mapping dictionary (`mappings.mappingklassen`) to map class identifiers to
-    specific class names.
+#     This function first obtains a list of courses the user is enrolled in by calling
+#     `return_list_of_courses_of_student(user.lehrerid)`. It then uses a predefined
+#     mapping dictionary (`mappings.mappingklassen`) to map class identifiers to
+#     specific class names.
 
-    The function iterates through each key (class identifier) in the mapping and
-    checks if this class identifier, concatenated with the current school year
-    (`schuljahr`), is present in the list of courses. If a match is found, the
-    corresponding class name from the mapping is returned.
+#     The function iterates through each key (class identifier) in the mapping and
+#     checks if this class identifier, concatenated with the current school year
+#     (`schuljahr`), is present in the list of courses. If a match is found, the
+#     corresponding class name from the mapping is returned.
 
-    Args:
-        user: An instance of the User class for whom the class is being determined.
+#     Args:
+#         user: An instance of the User class for whom the class is being determined.
 
-    Returns:
-        str: The class name associated with the user if a match is found,
-             otherwise None.
-    """
-    # Retrieve the list of courses the user is enrolled in based on their LehrerID
-    klassen = return_list_of_courses_of_student(user.lehrerid, memberships)
+#     Returns:
+#         str: The class name associated with the user if a match is found,
+#              otherwise None.
+#     """
+#     # Retrieve the list of courses the user is enrolled in based on their LehrerID
+#     klassen = return_list_of_courses_of_student(user.lehrerid, memberships)
 
-    # Access the mapping dictionary that maps class identifiers to class names
-    mappingklassen = mappings.mappingklassen
+#     # Access the mapping dictionary that maps class identifiers to class names
+#     mappingklassen = mappings.mappingklassen
 
-    # Iterate through each item in the class mapping
-    for item in mappingklassen:
-        # Check if the class identifier with the current school year is present in the user's courses
-        if item + f"{schuljahr}" in klassen:
-            # If found, return the corresponding class name from the mapping
-            return mappingklassen[item]
+#     # Iterate through each item in the class mapping
+#     for item in mappingklassen:
+#         # Check if the class identifier with the current school year is present in the user's courses
+#         if item + f"{schuljahr}" in klassen:
+#             # If found, return the corresponding class name from the mapping
+#             return mappingklassen[item]
+
+
+def load_email_to_kuerzel(users_csv):
+  """
+  Lädt die E-Mail zu Kürzel-Zuordnungen aus der Benutzer-Csv-Datei.
+
+  Args:
+      users_csv (str): Pfad zur Benutzer-Csv-Datei.
+
+  Returns:
+      dict: Ein Dictionary mit E-Mail-Adressen (kleingeschrieben) als Schlüssel und Kürzeln als Werte.
+  """
+  mapping = {}
+  with open(users_csv, mode="r", encoding="utf-8") as file:
+      reader = csv.DictReader(file)
+      for row in reader:
+          email = row['email'].strip().lower()
+          kuerzel = row['kuerzel'].strip()
+          if email and kuerzel:
+              mapping[email] = kuerzel
+  return mapping
+
+def load_mappinggroups(mappinggroups_csv):
+  """
+  Lädt die Gruppen-Mappings aus einer CSV-Datei.
+
+  Args:
+      mappinggroups_csv (str): Pfad zur CSV-Datei mit den Gruppen-Mappings.
+
+  Returns:
+      dict: Ein Dictionary mit Originalnamen als Schlüssel und neuen Namen als Werte.
+  """
+  mappinggroups = {}
+  with open(mappinggroups_csv, mode='r', encoding='utf-8') as file:
+      reader = csv.DictReader(file)
+      for row in reader:
+          original = row['name']
+          mapped = row['newname']
+          mappinggroups[original] = mapped
+  return mappinggroups
 
 
 def create_jamf_accounts(
@@ -829,12 +869,12 @@ def create_jamf_accounts_teachers(
                 )
 
 
-def load_email_to_kuerzel(users_csv):
-    return mappings.load_email_to_kuerzel(users_csv)
+# def load_email_to_kuerzel(users_csv):
+#     return mappings.load_email_to_kuerzel(users_csv)
 
 
-def load_mappinggroups(mappinggroups_csv):
-    return mappings.load_mappinggroups(mappinggroups_csv)
+# def load_mappinggroups(mappinggroups_csv):
+#     return mappings.load_mappinggroups(mappinggroups_csv)
 
 
 def create_jamf_accounts_teachers(
@@ -974,12 +1014,6 @@ def main_export(inputaktuell, exportdate):
     # Exportiere Benutzer und Gruppen
     export_users_to_csv(users, f"users{exportdate}.csv")
     export_groups_to_csv(groups, f"groups{exportdate}.csv")
-
-    # # Benenne Gruppen um
-    # rename_groups(groups)
-
-    # Exportiere erneut, falls Gruppen umbenannt wurden
-    export_groups_to_csv(groups, f"groups_{exportdate}_renamed.csv")
 
     print("CSV-Dateien wurden erfolgreich exportiert.")
 
