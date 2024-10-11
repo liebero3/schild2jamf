@@ -975,8 +975,8 @@ def main_export(inputaktuell, exportdate):
     export_users_to_csv(users, f"users{exportdate}.csv")
     export_groups_to_csv(groups, f"groups{exportdate}.csv")
 
-    # Benenne Gruppen um
-    rename_groups(groups)
+    # # Benenne Gruppen um
+    # rename_groups(groups)
 
     # Exportiere erneut, falls Gruppen umbenannt wurden
     export_groups_to_csv(groups, f"groups_{exportdate}_renamed.csv")
