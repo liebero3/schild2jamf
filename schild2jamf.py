@@ -861,32 +861,43 @@ def create_jamf_accounts_teachers(
             courses = return_list_of_courses_of_student(
                 user.lehrerid, memberships, groups
             )
-            groups_list = ",".join(courses)
-
             # Prüfen, ob "AlleL" in den Gruppen ist
-            if "Alle - Lehrer" in groups_list:
+            if "Alle - Lehrer" in courses:
                 # Filtern der Gruppen basierend auf bestimmten Kriterien
                 filtered_groups = []
-                for group in groups_list.split(","):
-                    if any(
-                        sub in group for sub in ["09", "10", "EF", "Q1"]
-                    ) and group not in ["EFL24", "Q1L24", "Q2L24"]:
-                        filtered_groups.append(group)
+                # for group in groups_list.split(","):
+                for group in courses:
+                    print(f"{user} ist in {group}")
+                    # if any(
+                    #     sub in group for sub in ["09", "10", "EF", "Q1"]
+                    # ) and group not in ["EFL24", "Q1L24", "Q2L24"]:
+                        # filtered_groups.append(group)
+                    filtered_groups.append(group)
 
                 # Aktualisieren der Gruppennamen mit dem mappinggroups Dictionary
                 updated_groups = []
                 for group in filtered_groups:
-                    mapped_group = mappinggroups.get(group, group)
-                    if (
-                        len(mapped_group) == 6
-                        and mapped_group[0:2] in ["09", "10"]
-                        and mapped_group[3] == "L"
-                    ):
-                        updated_groups.append(mapped_group[:3] + "S" + mapped_group[4:])
-                    else:
-                        updated_groups.append(mapped_group)
-                groups_str = ",".join(updated_groups)
-                groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+                    mapped_group = mappinggroups.get(group,"")
+                    updated_groups.append(mapped_group)
+                    # print(updated_groups)
+                    # if (
+                    #     len(mapped_group) == 6
+                    #     and mapped_group[0:2] in ["09", "10"]
+                    #     and mapped_group[3] == "L"
+                    # ):
+                    #     updated_groups.append(mapped_group[:3] + "S" + mapped_group[4:])
+                    # else:
+                    #     updated_groups.append(mapped_group)
+                print(updated_groups)
+                groups_str = ""
+                try:
+                    groups_str = ",".join(updated_groups)
+                    print(groups_str)
+                    groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+                except TypeError:
+                    print(groups_str)
+                    groups_str += "iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+
 
                 # Mapping von E-Mail zu Kürzel
                 email_lower = user.email.lower()
@@ -943,7 +954,7 @@ def export_groups_to_csv(groups, file_name):
 
         # Schreibe Gruppendaten
         for group in groups:
-            writer.writerow([group.groupid, group.parent, group.name, group.name])
+            writer.writerow([group.groupid, group.parent, group.name,""])
 
 
 def main_export(inputaktuell, exportdate):
