@@ -3,9 +3,8 @@
 import argparse
 import xml.etree.ElementTree as ET
 
-# import mappings
-import re
-import utils
+# import re
+# import utils
 import os
 import csv
 from unidecode import unidecode
@@ -340,15 +339,65 @@ def load_mappinggroups(mappinggroups_csv):
     return mappinggroups
 
 
+def get_classes(groups):
+    classes = set()
+    for group in groups:
+        if group.name.startswith("Klasse "):
+            classes.add(group.name.split(" ")[1])
+    return sorted(list(classes))
+
+
+def get_klasse_of_user(user, memberships, groups):
+    # Holen Sie sich die Liste der Gruppen des Benutzers
+    groups = return_list_of_courses_of_student(user.lehrerid, memberships, groups)
+    # Gehe durch die Gruppen und suche nach der Klasse
+    for group in groups:
+        if group.startswith("Klasse ") and group.endswith("Schueler"):
+            # Ermittelt den Teil nach 'Klasse '
+            class_name = group.split(" ")[1]
+            # Falls die Klasse in der erwarteten Liste enthalten ist, zurückgeben
+            if class_name in [
+                "05A",
+                "05B",
+                "05C",
+                "05D",
+                "06A",
+                "06B",
+                "06C",
+                "06D",
+                "06E",
+                "07A",
+                "07B",
+                "07C",
+                "07D",
+                "08A",
+                "08B",
+                "08C",
+                "09A",
+                "09B",
+                "09C",
+                "10A",
+                "10B",
+                "10C",
+                "EF",
+                "Q2",
+            ]:
+                return class_name
+    # Geben Sie None oder eine leere Zeichenkette zurück, wenn keine Klasse gefunden wurde
+    return None
+
+
 def create_jamf_accounts(
     nameOfOutputCsv: str,
     dict_name_serial: dict,
     users,
+    groups,
     memberships,
+    mappinggroups: dict,
     klasse_filter: str = None,
 ):
-
     ser_nums = []  # List to hold serial numbers if required
+
     # Check if a specific CSV file exists for the provided class filter
     if klasse_filter and os.path.isfile(f"{klasse_filter}.csv"):
         with open(f"{klasse_filter}.csv", "r", encoding="utf-8") as file:
@@ -367,19 +416,49 @@ def create_jamf_accounts(
         i = 0  # Initialize counter for serial numbers
         for user in users:
             # Filter users by class if a class filter is applied
-            if klasse_filter and return_class_of_user(user) != klasse_filter:
+            if (
+                klasse_filter
+                and get_klasse_of_user(user, memberships, groups) != klasse_filter
+            ):
                 continue
 
             # Retrieve user courses and formats them into groups
-            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
-            groups = ",".join(courses)
+            courses = return_list_of_courses_of_student(
+                user.lehrerid, memberships, groups
+            )
+
+            # Check if the user is a student
+            if "Alle - Schüler" in courses:
+                # Filter and update groups
+                filtered_groups = []
+                for group in courses:
+                    filtered_groups.append(group)
+
+                updated_groups = []
+                for group in filtered_groups:
+                    mapped_group = mappinggroups.get(group, "")
+                    if mapped_group != "":
+                        updated_groups.append(mapped_group)
+
+                groups_str = ""
+                try:
+                    groups_str = ",".join(updated_groups)
+                except TypeError:
+                    groups_str = ""
+
+                # Add any additional student groups here if needed
+                # groups_str += ",AdditionalStudentGroup1,AdditionalStudentGroup2"
+            else:
+                # If not a student, join the courses as before
+                groups_str = ",".join(courses)
+
             # Map user info to the specific CSV structure
             user_data_mapping = {
                 "Username": f"164501-{user.username}",
                 "Email": f"{user.username}@164501.nrw.schule",
                 "FirstName": f"{user.username[:4]}",
                 "LastName": f"{user.username[4:]}",
-                "Groups": groups,
+                "Groups": groups_str,
                 "Password": f"{return_initial_password(user)}",
             }
 
@@ -400,69 +479,6 @@ def create_jamf_accounts(
 
 
 def create_jamf_accounts_teachers(
-    nameOfOutputCsv: str, memberships, users, klasse_filter: str = None
-):
-
-    with open(nameOfOutputCsv, "w", encoding="utf-8") as f:
-        # Write the header line to the output CSV file
-        f.write("Username;Email;FirstName;LastName;TeacherGroups;Groups;Password\n")
-
-        for user in users:
-            # Get the list of courses for each user and convert to a CSV-friendly format
-            courses = return_list_of_courses_of_student(user.lehrerid, memberships)
-            groups = f'{"##".join(courses)}'.replace("##", ",")
-
-            # Check if "AlleL" (assumed to mean 'all teachers') is in the group list
-            if "AlleL" in groups:
-                # Filter to select groups matching specific patterns (grades and levels)
-                filtered_groups = []
-                for group in groups.split(","):
-                    if any(
-                        substring in group for substring in ["09", "10", "EF", "Q1"]
-                    ) and group not in ["EFL24", "Q1L24", "Q2L24"]:
-                        filtered_groups.append(group)
-
-                # Update group names by replacing 'L' with 'S' for specific grades
-                updated_groups = []
-                for group in filtered_groups:
-                    if (
-                        len(group) == 6
-                        and group[0:2] in ["09", "10"]
-                        and group[3] == "L"
-                    ):
-                        updated_groups.append(group[:3] + "S" + group[4:])
-                    else:
-                        updated_groups.append(group)
-                groups = ",".join(updated_groups)
-                groups = (
-                    groups
-                    + ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30,FW-LZ-01-15,FW-LZ-16-30,FW-LZ-alle,FW-1.Stock-01-15,FW-1.Stock-16-30,FW-1.Stock-alle"
-                )
-
-                # Map user's email to a specific key or use an alternate ID
-                try:
-                    email_kuerzel = mappings.mapping_email_kuerzel[user.email]
-                except KeyError:
-                    email_kuerzel = return_webuntis_uid(user)
-
-                # Define user data mapping for CSV output
-                user_data_mapping = {
-                    "Username": f"164501-{return_username(email_kuerzel, '', 'kurzform')}",
-                    "Email": f"{return_username(email_kuerzel, '', 'kurzform')}@164501.nrw.schule",
-                    "FirstName": email_kuerzel,
-                    "LastName": email_kuerzel,
-                    "TeacherGroups": groups,
-                    "Groups": "AlleL",
-                    "Password": return_initial_password(user),
-                }
-
-                # Write the user data line to the output file
-                f.write(
-                    f"{user_data_mapping['Username']};{user_data_mapping['Email']};{user_data_mapping['FirstName']};{user_data_mapping['LastName']};{user_data_mapping['TeacherGroups']};{user_data_mapping['Groups']};{user_data_mapping['Password']}\n"
-                )
-
-
-def create_jamf_accounts_teachers(
     nameOfOutputCsv: str,
     email_to_kuerzel: dict,
     users,
@@ -471,6 +487,7 @@ def create_jamf_accounts_teachers(
     mappinggroups: dict,
     klasse_filter: str = None,
 ):
+    classes = get_classes(groups)
 
     with open(nameOfOutputCsv, "w", encoding="utf-8") as f:
         # Schreiben der Kopfzeile
@@ -490,7 +507,7 @@ def create_jamf_accounts_teachers(
                 filtered_groups = []
                 # for group in groups_list.split(","):
                 for group in courses:
-                    print(f"{user} ist in {group}")
+                    # print(f"{user} ist in {group}")
                     filtered_groups.append(group)
                 # Aktualisieren der Gruppennamen mit dem mappinggroups Dictionary
                 updated_groups = []
@@ -498,14 +515,14 @@ def create_jamf_accounts_teachers(
                     mapped_group = mappinggroups.get(group, "")
                     if mapped_group != "":
                         updated_groups.append(mapped_group)
-                print(updated_groups)
                 groups_str = ""
                 try:
                     groups_str = ",".join(updated_groups)
-                    print(groups_str)
+                    # print(groups_str)
+                    # TODO: hier teacher_additional_groups.csv einfügen
                     groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
                 except TypeError:
-                    print(groups_str)
+                    # print(groups_str)
                     groups_str += "iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
 
                 # Mapping von E-Mail zu Kürzel
@@ -566,7 +583,7 @@ def export_groups_to_csv(groups, file_name):
             writer.writerow([group.groupid, group.parent, group.name, ""])
 
 
-def main_export(inputaktuell, exportdate):
+def main_export_mapping(inputaktuell, exportdate):
     # Initialisiere leere Listen
     users = []
     groups = []
@@ -587,7 +604,7 @@ def main_export(inputaktuell, exportdate):
     print("CSV-Dateien wurden erfolgreich exportiert.")
 
 
-def main_generate_kuerzel(users_csv, exportdate):
+def main_generate_accounts(users_csv, exportdate):
     # Lade die Email-zu-Kürzel-Zuordnung
     email_to_kuerzel = load_email_to_kuerzel(users_csv)
     print("Kürzel-Mapping wurde aus 'users.csv' geladen und kann nun verwendet werden.")
@@ -622,12 +639,22 @@ def main_generate_kuerzel(users_csv, exportdate):
 
     print(f"Lehrer-Konten wurden in '{output_csv_teachers}' erstellt.")
 
+    create_jamf_accounts(
+        "06Ctest.csv",
+        email_to_kuerzel,
+        users,
+        groups,
+        memberships,
+        mappinggroups,
+        "06C",
+    )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Schild2Jamf Skript mit Optionen.")
     parser.add_argument(
         "option",
-        choices=["export", "generate_kuerzel"],
+        choices=["mapping", "accounts"],
         help="Option auswählen: 'export' zum Erstellen der CSV-Dateien, 'generate_kuerzel' zum Laden der Kürzel aus CSV.",
     )
     args = parser.parse_args()
@@ -638,16 +665,16 @@ def main():
     # Extrahiere das Datum aus dem Dateinamen
     exportdate = "".join([i for i in inputaktuell if i.isdigit()])
 
-    if args.option == "export":
-        main_export(inputaktuell, exportdate)
-    elif args.option == "generate_kuerzel":
+    if args.option == "mapping":
+        main_export_mapping(inputaktuell, exportdate)
+    elif args.option == "accounts":
         users_csv = f"users{exportdate}.csv"
         if not os.path.isfile(users_csv):
             print(
                 f"Fehler: '{users_csv}' existiert nicht. Bitte führe zuerst die 'export' Option aus."
             )
             return
-        main_generate_kuerzel(users_csv, exportdate)
+        main_generate_accounts(users_csv, exportdate)
 
 
 if __name__ == "__main__":
