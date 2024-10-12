@@ -488,7 +488,8 @@ def create_jamf_accounts_teachers(
     klasse_filter: str = None,
 ):
     classes = get_classes(groups)
-
+    additional_groups = load_additional_groups_from_csv("teacher_additional_groups.csv")
+    # print(additional_groups)
     with open(nameOfOutputCsv, "w", encoding="utf-8") as f:
         # Schreiben der Kopfzeile
         f.write("Username;Email;FirstName;LastName;TeacherGroups;Groups;Password\n")
@@ -513,17 +514,18 @@ def create_jamf_accounts_teachers(
                 updated_groups = []
                 for group in filtered_groups:
                     mapped_group = mappinggroups.get(group, "")
-                    if mapped_group != "":
+                    if mapped_group != "" and mapped_group != "AlleL":
                         updated_groups.append(mapped_group)
                 groups_str = ""
                 try:
                     groups_str = ",".join(updated_groups)
                     # print(groups_str)
                     # TODO: hier teacher_additional_groups.csv einfügen
-                    groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+                    groups_str += "," + ",".join(additional_groups)
+                    # groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
                 except TypeError:
                     # print(groups_str)
-                    groups_str += "iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
+                    groups_str += "," + ",".join(additional_groups)
 
                 # Mapping von E-Mail zu Kürzel
                 email_lower = user.email.lower()
@@ -550,6 +552,17 @@ def create_jamf_accounts_teachers(
                     f"{user_data_mapping['Password']}\n"
                 )
 
+
+def load_additional_groups_from_csv(file_path: str) -> list:
+    additional_groups = []
+    with open(file_path, mode='r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if 'additional_groups' in row:
+                additional_groups_value = row['additional_groups']
+                # Split groups if they are comma-separated
+                additional_groups.extend(additional_groups_value.split(','))
+    return additional_groups
 
 def export_users_to_csv(users, file_name):
     with open(file_name, mode="w", newline="", encoding="utf-8") as file:
