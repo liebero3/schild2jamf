@@ -489,7 +489,7 @@ def create_jamf_accounts(
             )
 
             # Check if the user is a student
-            if "Alle - Schüler" in courses:
+            if "Alle - Schueler" in courses:
                 # Filter and update groups
                 filtered_groups = []
                 for group in courses:
@@ -567,7 +567,6 @@ def create_jamf_accounts_teachers(
             if "Alle - Lehrer" in courses:
                 # Filtern der Gruppen basierend auf bestimmten Kriterien
                 filtered_groups = []
-                # for group in groups_list.split(","):
                 for group in courses:
                     # print(f"{user} ist in {group}")
                     filtered_groups.append(group)
@@ -580,12 +579,8 @@ def create_jamf_accounts_teachers(
                 groups_str = ""
                 try:
                     groups_str = ",".join(updated_groups)
-                    # print(groups_str)
-                    # TODO: hier teacher_additional_groups.csv einfügen
                     groups_str += "," + ",".join(additional_groups)
-                    # groups_str += ",iPads-Lehrerzimmer_1-15,iPads-Lehrerzimmer_alle,iPads-Lehrerzimmer_16-30"
                 except TypeError:
-                    # print(groups_str)
                     groups_str += "," + ",".join(additional_groups)
 
                 # Mapping von E-Mail zu Kürzel
