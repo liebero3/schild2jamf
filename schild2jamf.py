@@ -387,6 +387,67 @@ def get_klasse_of_user(user, memberships, groups):
     return None
 
 
+def shorten_group_name(name, groupid):
+    if 'raum-kurs' in groupid:
+        # Der letzte Teil wird aufgesplittet, um Handling von "- Lehrer" oder "- Schüler" zu erlauben
+        name_parts = name.split(' - ')
+        main_name_part = name_parts[0]
+        
+        # Hauptaufteilung des Namens, um auf den spezifischen Inhalt zuzugreifen
+        main_name_parts = main_name_part.split(' (')
+        
+        if len(main_name_parts) < 2:
+            return ""  # Wenn das Format des Namens nicht wie erwartet ist.
+        
+        first_split_parts = main_name_parts[0].split()
+        first_part = first_split_parts[0]  # Fachkürzel
+
+        second_part = ""
+        if len(first_split_parts) > 1:
+            second_part = first_split_parts[1]  # Kursmerkmal, falls vorhanden
+
+        try:
+            # Verarbeiten der in Klammern enthaltenen Teile
+            inside_parens = main_name_parts[1].rstrip(')').split(', ')
+            if len(inside_parens) < 4:
+                return ""  # Fehlende Daten in Klammern
+            
+            year_gr = inside_parens[2]  # Jahrgangsstufe
+            teacher = inside_parens[3]  # Kürzel des Lehrers/der Lehrenden
+
+            suffix = ''
+            if 'Lehrer' in name:
+                suffix = 'L'
+            elif 'Schueler' in name:
+                suffix = 'S'
+
+            shortname = f"{first_part}{second_part}{year_gr}{teacher}{suffix}"
+            return shortname
+
+        except IndexError:
+            return ""
+
+    elif 'raum-klasse' in groupid:
+        if 'Betriebe' in name or 'Ausbilder' in name:
+            return ""  # Überspringen
+        
+        class_parts = name.split()
+        
+        if len(class_parts) < 2:
+            return ""
+
+        class_name = class_parts[1]  # Beispiel: "07D"
+        suffix = 'L' if 'Lehrer' in name else ('S' if 'Schueler' in name else '')
+        shortname = f"{class_name}{suffix}"
+        return shortname
+
+    elif 'raum-fach' in groupid:
+        return ""  # Return empty string
+
+    return ""  # Falls kein gültiger `groupid`-Typ gefunden wird
+
+
+
 def create_jamf_accounts(
     nameOfOutputCsv: str,
     dict_name_serial: dict,
@@ -593,7 +654,7 @@ def export_groups_to_csv(groups, file_name):
 
         # Schreibe Gruppendaten
         for group in groups:
-            writer.writerow([group.groupid, group.parent, group.name, ""])
+            writer.writerow([group.groupid, group.parent, group.name, shorten_group_name(group.name, group.groupid)])
 
 
 def main_export_mapping(inputaktuell, exportdate):
