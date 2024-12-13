@@ -386,7 +386,7 @@ def get_klasse_of_user(user, memberships, groups):
     # Geben Sie None oder eine leere Zeichenkette zurück, wenn keine Klasse gefunden wurde
     return None
 
-
+# TODO: shorten_group_name so anpassen, dass es auch für anderen output angepasst werden kann. Also mit und ohne suffix bspw.
 def shorten_group_name(name, groupid):
     if 'raum-kurs' in groupid:
         # Der letzte Teil wird aufgesplittet, um Handling von "- Lehrer" oder "- Schüler" zu erlauben
@@ -422,6 +422,7 @@ def shorten_group_name(name, groupid):
                 suffix = 'S'
 
             shortname = f"{first_part}{second_part}{year_gr}{teacher}{suffix}"
+            # shortname = f"{first_part}{second_part}{year_gr}{teacher}"
             return shortname
 
         except IndexError:
@@ -718,12 +719,49 @@ def main_generate_accounts(users_csv, exportdate):
         "06C",
     )
 
+def get_serials(input_file, output_file='serials.csv', names_list=None):
+  """
+  Filtert eine CSV-Datei und erstellt eine neue CSV mit nur Name und SerialNumber.
+  
+  Args:
+      input_file (str): Pfad zur Eingabe-CSV-Datei
+      output_file (str): Pfad zur Ausgabe-CSV-Datei (Standard: 'serials.csv')
+      names_list (list): Optional - Liste mit Namen, nach denen gefiltert werden soll
+  """
+  try:
+      # Lesen der Eingabe-CSV
+      with open(input_file, 'r', encoding='utf-8') as infile:
+          reader = csv.DictReader(infile, delimiter=';')
+          
+          # Filtern der relevanten Spalten
+          filtered_data = []
+          for row in reader:
+              # Wenn eine Namensliste vorhanden ist, nur diese Namen berücksichtigen
+              if names_list is None or row['Name'] in names_list:
+                  filtered_data.append({
+                      'Name': row['Name'],
+                      'SerialNumber': row['SerialNumber']
+                  })
+      
+      # Schreiben der gefilterten Daten in neue CSV
+      with open(output_file, 'w', encoding='utf-8', newline='') as outfile:
+          fieldnames = ['Name', 'SerialNumber']
+          writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
+          
+          writer.writeheader()
+          writer.writerows(filtered_data)
+          
+      print(f"Die gefilterte CSV wurde erfolgreich erstellt: {output_file}")
+      
+  except Exception as e:
+      print(f"Ein Fehler ist aufgetreten: {str(e)}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Schild2Jamf Skript mit Optionen.")
     parser.add_argument(
         "option",
-        choices=["mapping", "accounts"],
+        choices=["mapping", "accounts", "serials"],
         help="Option auswählen: 'export' zum Erstellen der CSV-Dateien, 'generate_kuerzel' zum Laden der Kürzel aus CSV.",
     )
     args = parser.parse_args()
@@ -744,6 +782,40 @@ def main():
             )
             return
         main_generate_accounts(users_csv, exportdate)
+    elif args.option == "serials":
+        names = [
+        "164501-IP-0110",
+        "164501-IP-0121",
+        "164501-IP-0088",
+        "164501-IP-0177",
+        "164501-IP-0047",
+        "164501-IP-0084",
+        "164501-IP-0118",
+        "164501-IP-0191",
+        "164501-IP-0212",
+        "164501-IP-0056",
+        "164501-IP-10-0355",
+        "164501-IP-10-0344",
+        "164501-IP-10-0349",
+        "164501-IP-10-0346",
+        "164501-IP-0014",
+        "164501-IP-10-0361",
+        "164501-IP-10-0363",
+        "164501-IP-10-0342",
+        "164501-IP-10-0336",
+        "164501-IP-10-0341",
+        "164501-IP-10-0340",
+        "164501-IP-10-0351",
+        "164501-IP-10-0357",
+        "164501-IP-10-0359",
+        "164501-IP-10-0345",
+        "164501-IP-10-0354",
+        "164501-IP-10-0360",
+        "164501-IP-10-0369",
+        "164501-IP-10-0358",
+        "164501-IP-10-0347"
+        ]
+        get_serials("devices20241010.csv",names_list=names)
 
 
 if __name__ == "__main__":
