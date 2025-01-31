@@ -697,7 +697,7 @@ def main_generate_accounts(users_csv, exportdate):
     memberships = []
 
     # Parse das XML erneut, um aktuelle Daten zu erhalten
-    inputaktuell = "./xml/SchILD20241007.xml"
+    inputaktuell = "./xml/SchILD20250129.xml"
     tree = ET.parse(inputaktuell)
     root = tree.getroot()
     parse_xml(users, groups, memberships, root)
@@ -710,13 +710,13 @@ def main_generate_accounts(users_csv, exportdate):
     print(f"Lehrer-Konten wurden in '{output_csv_teachers}' erstellt.")
 
     create_jamf_accounts(
-        "06Ctest.csv",
+        "EFtest.csv",
         email_to_kuerzel,
         users,
         groups,
         memberships,
         mappinggroups,
-        "06C",
+        "EF",
     )
 
 def get_serials(input_file, output_file='serials.csv', names_list=None):
@@ -767,7 +767,7 @@ def main():
     args = parser.parse_args()
 
     # Definiere den Pfad zur aktuellen XML-Datei
-    inputaktuell = "./xml/SchILD20241007.xml"
+    inputaktuell = "./xml/SchILD20250129.xml"
 
     # Extrahiere das Datum aus dem Dateinamen
     exportdate = "".join([i for i in inputaktuell if i.isdigit()])
@@ -778,7 +778,7 @@ def main():
         users_csv = f"users{exportdate}.csv"
         if not os.path.isfile(users_csv):
             print(
-                f"Fehler: '{users_csv}' existiert nicht. Bitte führe zuerst die 'export' Option aus."
+                f"Fehler: '{users_csv}' existiert nicht. Bitte führe zuerst die 'mapping' Option aus."
             )
             return
         main_generate_accounts(users_csv, exportdate)
